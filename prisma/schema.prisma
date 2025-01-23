@@ -1,0 +1,218 @@
+// datasource and generator setup
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ---------------------------------------------------------
+//  ENUMS
+// ---------------------------------------------------------
+
+enum status {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  BUSINESS
+  CONSUMER
+}
+
+enum NotificationType {
+  ORDER
+  REVIEW
+}
+
+enum ContentType {
+  IMAGE
+  VIDEO
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  email        String    @unique
+  password     String
+  firstName    String?
+  lastName     String?
+  profileImage String?
+  dateOfBirth  DateTime?
+  phoneNumber  String
+  role         Role      @default(CONSUMER)
+  city         String?
+  country      String?
+  fcmToken     String?
+
+  isOnline         Boolean @default(false)
+  status           status  @default(INACTIVE)
+  stripeCustomerId String?
+
+  orders           Order[]
+  reviews          Review[]
+  messages         Message[]          @relation("UserMessages")
+  businesses       Business[]         @relation("UserBusinesses")
+  subscriptions    Subscription[]
+  notifications    Notifications[]    @relation("Notifications")
+  UserSubscription UserSubscription[]
+  chatId           String?            @db.ObjectId
+  Chat             Chat?              @relation(fields: [chatId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Otp {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String
+  otp       Int
+  hexCode   String?
+  expiry    DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("otps")
+}
+
+model SubscriptionPlan {
+  id               String             @id @default(auto()) @map("_id") @db.ObjectId
+  name             String
+  price            Float
+  features         String
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  UserSubscription UserSubscription[]
+
+  @@map("subscriptionPlans")
+}
+
+model Notifications {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  receiverId String   @db.ObjectId
+  title      String
+  body       String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [receiverId], references: [id], name: "Notifications")
+
+  @@map("notifications")
+}
+
+model Business {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  ownerId         String    @db.ObjectId
+  owner           User      @relation(fields: [ownerId], references: [id], name: "UserBusinesses")
+  companyName     String
+  openingTime     String
+  closingTime     String
+  primaryLocation String
+  email           String
+  contents        Content[]
+  orders          Order[]
+  reviews         Review[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("businesses")
+}
+
+model Content {
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  businessId String      @db.ObjectId
+  business   Business    @relation(fields: [businessId], references: [id])
+  type       ContentType
+  url        String
+  createdAt  DateTime    @default(now())
+
+  @@map("contents")
+}
+
+model Order {
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String      @db.ObjectId
+  user       User        @relation(fields: [userId], references: [id])
+  businessId String      @db.ObjectId
+  business   Business    @relation(fields: [businessId], references: [id])
+  status     OrderStatus
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@map("orders")
+}
+
+model Review {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String   @db.ObjectId
+  user       User     @relation(fields: [userId], references: [id])
+  businessId String   @db.ObjectId
+  business   Business @relation(fields: [businessId], references: [id])
+  rating     Int
+  comment    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("reviews")
+}
+
+model Message {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  senderId  String   @db.ObjectId
+  sender    User     @relation(fields: [senderId], references: [id], name: "UserMessages")
+  chatId    String   @db.ObjectId
+  content   String
+  createdAt DateTime @default(now())
+  Chat      Chat     @relation(fields: [chatId], references: [id])
+
+  @@map("messages")
+}
+
+model Chat {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  name      String?
+  createdAt DateTime  @default(now())
+  User      User[]
+  Message   Message[]
+
+  @@map("chats")
+}
+
+model Subscription {
+  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId               String   @db.ObjectId
+  user                 User     @relation(fields: [userId], references: [id])
+  stripeSubscriptionId String   @unique
+  status               String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("subscriptions")
+}
+
+model UserSubscription {
+  id        String           @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String           @db.ObjectId
+  planId    String           @db.ObjectId
+  startDate DateTime         @default(now())
+  endDate   DateTime?
+  user      User             @relation(fields: [userId], references: [id])
+  plan      SubscriptionPlan @relation(fields: [planId], references: [id])
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@map("userSubscriptions")
+}
